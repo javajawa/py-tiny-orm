@@ -13,7 +13,7 @@ on:
       - published
 
 env:
-  SOURCES: orm examples setup.py
+  SOURCES: orm examples tests setup.py
 
 jobs:
   reuse-lint:
@@ -53,6 +53,7 @@ jobs:
     - name: Run PyLint
       run: pylint ${{ env.SOURCES }} | python .github/workflows/pylint_to_gh_action.py
 
+
   python-lint:
     name: Lint Python code
     runs-on: ubuntu-latest
@@ -77,24 +78,99 @@ jobs:
     - name: Install dependencies
       run:  pip install -r requirements-dev.txt
 
-    - run: |
-        echo $PATH
-        which flake8
-
     - name: Run Linters
       if: github.event_name != 'release'
       uses: samuelmeuli/lint-action@v1
       with:
         github_token: ${{ secrets.github_token }}
 
-        black:       true
-
-        flake8:     true
-
-        mypy:       true
-        mypy_args:  --strict
+        black:     true
+        flake8:    true
+        mypy:      true
+        mypy_args: --strict
 
         continue_on_error: false
+
+
+  pytest:
+    name: Run Python Tests
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: [3.7, 3.8, 3.9]
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Setup Python ${{ matrix.python }}
+      uses: actions/setup-python@v1
+      with:
+        python-version: ${{ matrix.python }}
+
+    - name: Load Depedency Cache
+      id: cache
+      uses: actions/cache@v2
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+        restore-keys: ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run:  pip install -r requirements-dev.txt
+
+    - run: pwd
+
+    - name: Run Linters
+      run: coverage run "--context=${{ matrix.os }} python ${{ matrix.python }}" -m unittest discover tests '*_test.py'
+
+    - name: Upload coverage result
+      uses: actions/upload-artifact@v2
+      with:
+        name: coverage-${{ matrix.os }}-${{ matrix.python }}
+        path: .coverage
+
+
+  coverage:
+    name: Review Coverage information
+    runs-on: ubuntu-latest
+    needs: pytest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Setup Python 3.7
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.7
+
+    - name: Install coverage
+      run:  pip install coverage toml
+
+    - name: Get data
+      uses: actions/download-artifact@v2
+
+    - name: Combine coverage info
+      run: |
+        coverage combine coverage-*/.coverage
+
+    - name: Report
+      run: |
+        coverage html --fail-under=0
+
+    - name: Upload HTML report
+      uses: actions/upload-artifact@v2
+      with:
+        name: coverage html
+        path: htmlcov
+
+    - name: Report
+      run: |
+        coverage report
+
 
   build:
     name: Build package
@@ -103,6 +179,7 @@ jobs:
     needs:
       - py-lint
       - python-lint
+      - pytest
       - reuse-lint
 
     steps:

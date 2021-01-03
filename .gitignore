@@ -4,8 +4,9 @@
 
 /build/
 /dist/
+/htmlcov/
 /venv/
-/py_mini_orm.egg-info/
+/.coverage
 
 /.mypy_cache
 __pycache__/

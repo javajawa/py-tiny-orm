@@ -16,3 +16,17 @@ jobs=4
 [tool.pylint."MESSAGES CONTROL"]
 
 disable="bad-continuation"
+
+[tool.coverage.run]
+
+branch=true
+relative_files=true
+source=["orm"]
+
+[tool.coverage.report]
+
+fail_under=80.0
+
+[tool.coverage.html]
+
+show_contexts=true

@@ -5,6 +5,7 @@
 -r requirements.txt
 
 black
+coverage
 flake8
 mypy
 pylint

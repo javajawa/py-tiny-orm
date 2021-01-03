@@ -114,6 +114,7 @@ def _decompose_type(_type: Type[Any]) -> Tuple[Type[Any], bool]:
     args.remove(NoneType)
 
     if len(args) != 1:
+        _type.__args__ = tuple(args)
         return _type, False
 
     return args.pop(), False

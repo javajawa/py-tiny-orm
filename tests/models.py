@@ -18,11 +18,20 @@ class Simple(orm.Table["Simple"]):
     simple_id: int
 
 
-class SimpleIdOptional(orm.Table["Simple"]):
+class Simple2(orm.Table["Simple"]):
     """simpliest table -- just an id"""
 
-    simple_id: Optional[int]
+    simple2_id: Optional[int]
 
 
-class MissingIdField(orm.Table["MissingIdField"]):
+class MissingId(orm.Table["MissingId"]):
     """Model with no ID (or other) fields"""
+
+
+@orm.unique("username")
+class User(orm.Table["User"]):
+    """Example table: a User"""
+
+    user_id: int
+    username: str
+    email: str

@@ -33,6 +33,8 @@ import re
 import sqlite3
 import typing_inspect  # type: ignore
 
+from orm.exceptions import MissingIdField
+
 
 ModelledTable = TypeVar("ModelledTable", bound="Table[Any]")
 NoneType: Type[None] = type(None)
@@ -67,7 +69,7 @@ def _make_model(data_class: Type[ModelledTable]) -> TableModel[ModelledTable]:
     """Gets the TableModel instance for a given class that extends Table."""
 
     if not inspect.isclass(data_class):
-        raise Exception("Can not make model data from non-class")
+        raise TypeError("Can not make model data from non-class")
 
     table = data_class.__name__
     id_field = re.sub(r"(?<!^)(?=[A-Z])", "_", table).lower() + "_id"
@@ -76,7 +78,7 @@ def _make_model(data_class: Type[ModelledTable]) -> TableModel[ModelledTable]:
     types = get_type_hints(data_class)
 
     if id_field not in types:
-        raise Exception(f"ID field `{id_field}` missing in `{table}`")
+        raise MissingIdField(f"ID field `{id_field}` missing in `{table}`")
 
     model.table_fields[id_field] = "INTEGER NOT NULL PRIMARY KEY"
 

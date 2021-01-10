@@ -72,7 +72,8 @@ setuptools.setup(
     author_email="ben.harcourt@harcourtprogramming.co.uk",
     license="BSD-2-Clause",
     python_requires=">=3.7",
-    packages=['orm'],
+    packages=["orm"],
+    install_requires=["typing_inspect"],
     classifiers=[
         "Development Status :: 1 - Planning",
         "Intended Audience :: Developers",

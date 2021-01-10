@@ -71,6 +71,9 @@ def _make_model(data_class: Type[ModelledTable]) -> TableModel[ModelledTable]:
     if not inspect.isclass(data_class):
         raise TypeError("Can not make model data from non-class")
 
+    if not issubclass(data_class, Table):
+        raise TypeError("Data models can only be made from sub-classes of Table")
+
     table = data_class.__name__
     id_field = re.sub(r"(?<!^)(?=[A-Z])", "_", table).lower() + "_id"
 

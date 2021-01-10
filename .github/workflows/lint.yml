@@ -91,8 +91,6 @@ jobs:
         mypy:      true
         mypy_args: --strict
 
-        continue_on_error: false
-
 
   pytest:
     name: Run Python Tests

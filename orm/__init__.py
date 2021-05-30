@@ -18,9 +18,8 @@ Find this project at:
 
 from __future__ import annotations
 
-from .table import Table, ModelWrapper as TableModel, unique
+from .table import Table, ModelWrapper as TableModel, subtable, unique
 from .join import JoinTable, JoinWrapper as JoinModel
-from .subtable import subtable
 
 
 __all__ = ["Table", "TableModel", "JoinTable", "JoinModel", "subtable", "unique"]

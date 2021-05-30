@@ -17,6 +17,11 @@ class Simple(orm.Table["Simple"]):
 
     simple_id: int
 
+    def __init__(self, sid: int = 0) -> None:
+        super().__init__()
+
+        self.simple_id = sid
+
 
 class Simple2(orm.Table["Simple"]):
     """simpliest table -- just an id"""

@@ -34,6 +34,7 @@ import sqlite3
 import typing_inspect  # type: ignore
 
 from orm.exceptions import MissingIdField
+from orm.abc import BaseModel, FilterTypes, ForeignerMap
 
 
 ModelledTable = TypeVar("ModelledTable", bound="Table[Any]")
@@ -177,7 +178,7 @@ class Table(Generic[ModelledTable]):
         The init method of your class must support parameters for each of the
         fields listed in the class, using the same names.
 
-        If you are using a dataclass as yout table type, this will be handled
+        If you are using a dataclass as your table type, this will be handled
         for you. Otherwise, you will need to override this method.
 
         This function uses **kwargs to prevent type checkers from complaining
@@ -228,7 +229,7 @@ def unique(*fields: str) -> Callable[[Type[ModelledTable]], Type[ModelledTable]]
     return _unique
 
 
-class TableModel(Generic[ModelledTable]):
+class TableModel(Generic[ModelledTable], BaseModel):
     """The generated model for a given Table."""
 
     record: Type[ModelledTable]
@@ -238,7 +239,7 @@ class TableModel(Generic[ModelledTable]):
     id_field: str
 
     table_fields: Dict[str, str]
-    foreigners: Dict[str, Tuple[str, TableModel[Any]]]
+    foreigners: ForeignerMap
 
     def __init__(self, record: Type[ModelledTable], table: str, id_field: str):
         self.record = record
@@ -250,20 +251,19 @@ class TableModel(Generic[ModelledTable]):
         self.foreigners = {}
 
     def create_table(self, cursor: sqlite3.Cursor) -> None:
-        """Creates the table in SQLites"""
+        """Creates the table(s) in SQLite"""
 
         if self.created:
             return
 
+        # Preset this to true to work with Foreign key loops.
         self.created = True
-        print(self.foreigners)
 
         for _, model in self.foreigners.values():
             model.create_table(cursor)
 
         compiled_sql = self._create_table_sql()
 
-        print(compiled_sql)
         _LOGGER.debug(compiled_sql)
 
         cursor.execute(compiled_sql)
@@ -354,7 +354,7 @@ class TableModel(Generic[ModelledTable]):
 
         return output
 
-    def search(self, cursor: sqlite3.Cursor, **kwargs: Any) -> List[ModelledTable]:
+    def search(self, cursor: sqlite3.Cursor, **kwargs: FilterTypes) -> List[ModelledTable]:
         """
         Gets records for this model which match the given filters.
 
@@ -378,7 +378,7 @@ class TableModel(Generic[ModelledTable]):
             Bar.model(cursor).search(foo=Foo(1))
 
             # Search by local ID
-            # NOTE: This is value, but using Model.get() is faster.
+            # NOTE: This is valid, but using Model.get() is faster.
             Bar.model(cursor).search(bar_id=123)
         """
 
@@ -387,22 +387,13 @@ class TableModel(Generic[ModelledTable]):
                 kwargs[model.id_field] = getattr(kwargs[name], model.id_field)
                 del kwargs[name]
 
-        for key in kwargs:
-            if key not in self.table_fields:
-                raise AttributeError(f"{self.record.__name__} has no attribute {key}")
-
-        def field(_field: str) -> str:
-            return f"[{_field}] = :{_field}"
-
-        sql = (
-            f"SELECT {self.id_field} FROM [{self.table}] WHERE "
-            f"{' AND '.join(map(field, kwargs))}"
-        )
+        sql, params = self.where(self.foreigners, kwargs)
+        sql = f"SELECT {self.id_field} FROM [{self.table}] WHERE " + sql
 
         _LOGGER.debug(sql)
-        _LOGGER.debug(kwargs)
+        _LOGGER.debug(params)
 
-        cursor.execute(sql, kwargs)
+        cursor.execute(sql, params)
 
         ids = [x[0] for x in cursor.fetchall()]
 
@@ -493,7 +484,7 @@ class ModelWrapper(Generic[ModelledTable]):
 
         return self.model.get_many(self.cursor, *ids)
 
-    def search(self, **kwargs: Any) -> List[ModelledTable]:
+    def search(self, **kwargs: FilterTypes) -> List[ModelledTable]:
         """
         Gets records for this model which match the given filters.
 

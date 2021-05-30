@@ -55,6 +55,14 @@ class Test(unittest.TestCase):
         with self.assertRaises(TypeError, msg="Can not make model data from non-class"):
             orm.table._get_model(1)  # type: ignore
 
+    def test_model_generation_wrong_class(self) -> None:
+        """Test that creating a model from a non-Table class"""
+
+        with self.assertRaises(
+            TypeError, msg="Data models can only be made from sub-classes of Table"
+        ):
+            orm.table._get_model(Test)  # type: ignore
+
     def test_model_generation_missing_id(self) -> None:
         """Test Exception from creating a model that lacks an ID field"""
 

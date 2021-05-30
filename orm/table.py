@@ -249,7 +249,7 @@ def unique(*fields: str) -> Callable[[Type[ModelledTable]], Type[ModelledTable]]
 
         model: TableModel[ModelledTable] = _get_model(cls)
 
-        if not all([field in model.table_fields for field in fields]):
+        if not all(field in model.table_fields for field in fields):
             raise Exception(f"{cls.__name__} does not have all fields specified in key")
 
         uniques: List[Set[str]] = getattr(cls, _UNIQUES, [])

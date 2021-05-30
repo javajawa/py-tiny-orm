@@ -29,6 +29,7 @@ FilterTypes = Union[
     Iterable["orm.table.Table[Any]"],
 ]
 Filters = Mapping[str, FilterTypes]
+MutableFilters = Dict[str, FilterTypes]
 
 
 class BaseModel(abc.ABC):

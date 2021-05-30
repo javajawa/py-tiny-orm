@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from .table import Table, ModelWrapper as TableModel, unique
 from .join import JoinTable, JoinWrapper as JoinModel
+from .subtable import subtable
 
 
-__all__ = ["Table", "TableModel", "JoinTable", "JoinModel", "unique"]
+__all__ = ["Table", "TableModel", "JoinTable", "JoinModel", "subtable", "unique"]

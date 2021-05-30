@@ -82,6 +82,7 @@ class Test(unittest.TestCase):
 
         self.assertEqual({"simple_id": "INTEGER NOT NULL PRIMARY KEY"}, model.table_fields)
         self.assertEqual({}, model.foreigners)
+        self.assertEqual({}, model.submodels)
 
     def test_model_generation_simple2(self) -> None:
         """Test that a trivial model is created correctly"""
@@ -94,6 +95,7 @@ class Test(unittest.TestCase):
 
         self.assertEqual({"simple2_id": "INTEGER NOT NULL PRIMARY KEY"}, model.table_fields)
         self.assertEqual({}, model.foreigners)
+        self.assertEqual({}, model.submodels)
 
     def test_model_generation_user(self) -> None:
         """Test that a trivial model is created correctly"""
@@ -113,6 +115,7 @@ class Test(unittest.TestCase):
             model.table_fields,
         )
         self.assertEqual({}, model.foreigners)
+        self.assertEqual({}, model.submodels)
 
     def test_model_reentry(self) -> None:
         """Test that repeated calls to _get_model return the same object"""

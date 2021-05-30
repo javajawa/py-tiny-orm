@@ -51,6 +51,7 @@ _TYPE_MAP = {
 }
 
 _UNIQUES = "__orm_uniques__"
+_SUBTABLES = "__orm_subtable__"
 
 _MODELS: Dict[Type[ModelledTable], TableModel[ModelledTable]] = {}  # type: ignore
 
@@ -66,20 +67,20 @@ def _get_model(data_class: Type[Table[Any]]) -> TableModel[ModelledTable]:
     return _MODELS[data_class]
 
 
-def _make_model(data_class: Type[ModelledTable]) -> TableModel[ModelledTable]:
+def _make_model(cls: Type[ModelledTable]) -> TableModel[ModelledTable]:
     """Gets the TableModel instance for a given class that extends Table."""
 
-    if not inspect.isclass(data_class):
+    if not inspect.isclass(cls):
         raise TypeError("Can not make model data from non-class")
 
-    if not issubclass(data_class, Table):
+    if not issubclass(cls, Table):
         raise TypeError("Data models can only be made from sub-classes of Table")
 
-    table = data_class.__name__
+    table = cls.__name__
     id_field = re.sub(r"(?<!^)(?=[A-Z])", "_", table).lower() + "_id"
 
-    model = TableModel(data_class, table, id_field)
-    types = get_type_hints(data_class)
+    model = TableModel(cls, table, id_field)
+    types = get_type_hints(cls)
 
     if id_field not in types:
         raise MissingIdField(f"ID field `{id_field}` missing in `{table}`")
@@ -90,24 +91,46 @@ def _make_model(data_class: Type[ModelledTable]) -> TableModel[ModelledTable]:
         if _field in [id_field]:
             continue
 
-        _type, required = _decompose_type(_type)
-
-        if not _is_valid_type(_type):
-            raise Exception(f"Field `{_field}` in `{table}` is not a valid type")
-
-        if _type not in _TYPE_MAP:
-            if _type == data_class:
-                sub_model = model
-            else:
-                sub_model = _get_model(_type)
-                _field = sub_model.id_field
-
-            model.foreigners[_field] = (sub_model.id_field, sub_model)
-            _type = int
-
-        model.table_fields[_field] = _TYPE_MAP[_type] + (" NOT NULL" if required else "")
+        _process_type(model, cls, _field, _type)
 
     return model
+
+
+def _process_type(
+    model: TableModel[ModelledTable],
+    cls: Type[ModelledTable],
+    _field: str,
+    _type: Type[Any],
+) -> None:
+
+    _type, required = _decompose_type(_type)
+
+    for field, submodel in getattr(cls, _SUBTABLES, dict()).items():
+        if _field == field:
+            if _type != submodel.get_expected_type():
+                raise Exception(
+                    f"Unexpected type {_type} for submodel {submodel.model.table}"
+                )
+
+            submodel.connect_to(model)
+            model.submodels[_field] = submodel
+
+            return
+
+    if not _is_valid_type(_type):
+        raise Exception(f"Field `{_field}` in `{model.table}` is not a valid type")
+
+    if _type not in _TYPE_MAP:
+        if _type == cls:
+            sub_model = model
+        else:
+            sub_model = _get_model(_type)
+            _field = sub_model.id_field
+
+        model.foreigners[_field] = (sub_model.id_field, sub_model)
+        _type = int
+
+    model.table_fields[_field] = _TYPE_MAP[_type] + (" NOT NULL" if required else "")
 
 
 def _decompose_type(_type: Type[Any]) -> Tuple[Type[Any], bool]:
@@ -240,6 +263,7 @@ class TableModel(Generic[ModelledTable], BaseModel):
 
     table_fields: Dict[str, str]
     foreigners: ForeignerMap
+    submodels: Dict[str, "orm.submodel.SubTable[Any]"]  # type: ignore
 
     def __init__(self, record: Type[ModelledTable], table: str, id_field: str):
         self.record = record
@@ -249,6 +273,7 @@ class TableModel(Generic[ModelledTable], BaseModel):
 
         self.table_fields = {}
         self.foreigners = {}
+        self.submodels = {}
 
     def create_table(self, cursor: sqlite3.Cursor) -> None:
         """Creates the table(s) in SQLite"""
@@ -267,6 +292,9 @@ class TableModel(Generic[ModelledTable], BaseModel):
         _LOGGER.debug(compiled_sql)
 
         cursor.execute(compiled_sql)
+
+        for smodel in self.submodels.values():
+            smodel.model.create_table(cursor)
 
     def _create_table_sql(self) -> str:
         """CREATE TABLE Statement for this table"""
@@ -339,13 +367,7 @@ class TableModel(Generic[ModelledTable], BaseModel):
 
         del rows
 
-        for okey, (fkey, model) in self.foreigners.items():
-            fids: Set[int] = {row[okey] for row in packed}
-            frens = model.get_many(cursor, *fids)
-
-            for row in packed:
-                row[okey] = frens[row[fkey]]
-                del row[fkey]
+        packed = self._add_joins(cursor, packed)
 
         output: Dict[int, ModelledTable] = {}
 
@@ -353,6 +375,25 @@ class TableModel(Generic[ModelledTable], BaseModel):
             output[row[self.id_field]] = self.record(**row)
 
         return output
+
+    def _add_joins(
+        self, cursor: sqlite3.Cursor, packed: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        for our_key, (their_key, model) in self.foreigners.items():
+            their_ids: Set[int] = {row[our_key] for row in packed}
+            frens = model.get_many(cursor, *their_ids)
+
+            for row in packed:
+                row[our_key] = frens[row[their_key]]
+                del row[their_key]
+
+        for our_key, sub_model in self.submodels.items():
+            children = sub_model.select(cursor, [row[self.id_field] for row in packed])
+
+            for row in packed:
+                row[our_key] = children[row[self.id_field]]
+
+        return packed
 
     def search(self, cursor: sqlite3.Cursor, **kwargs: FilterTypes) -> List[ModelledTable]:
         """
